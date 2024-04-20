@@ -41,86 +41,139 @@ import os
 import json
 from queue import Queue
 from threading import Thread
+import argparse
+import logging
 
+
+REQUIRED_KEYS = ["AIRCRAFT_REGISTRATION", "FLIGHT_NUMBER", "FLIGHT_DATE", "DEPARTURE_AIRPORT", "ARRIVAL_AIRPORT", "SCHEDULE_DEPARTURE_TIME", "REFUELED_AT"]
+FILES_PATHS = Queue()
+CONVERSED_FILES = []
+BAD_FILES = []
+
+def argument_parser():
+    parser = argparse.ArgumentParser(description='Converse json files to xml')
+    parser.add_argument('input', type=str, help='Path to folder with json files')
+    parser.add_argument('-output', '--output_folder_path', type=str, default="xml_folder", help='Path to folder where xml files will be saved, deault xml_folder')
+    parser.add_argument('-tdc', "--time_delay_check", type=float, default=1, help="Time delay for checking for new/modified files in seconds, default 2s")
+    parser.add_argument('-tfdc', "--time_first_delay_check", type=float, default=1, help="First time delay for checking for new/modified files in seconds, default 1s")
+    parser.add_argument('-tww', "--time_wait_write", type=float, default=0.1, help="Time delay for checking if file is still being written in seconds, default 0.1s")
+    parser.add_argument('-log_a', '--log_a', type=str, default="all_logs.log", help="Path to all log file, default all_logs.log")
+    parser.add_argument('-log_w', '--log_w', type=str, default="warning_logs.log", help="Path to warning log file, default warning_logs.log")
+    parser.add_argument('-p', '--print', type=int, default=1, help="Enable or disable printing, default 1 (enabled), to disable set to 0")
+    args = parser.parse_args()
+    return args
+
+
+
+def check_files(input_folder_path : str, time_delay_check : float, time_first_delay_check : float) -> None: 
+    time.sleep(time_first_delay_check)
+    while True:
+        time.sleep(time_delay_check) 
+        files_names_check_files = os.listdir(input_folder_path)
+        for file_name_check_files in files_names_check_files:
+            file_path_check_files = os.path.join(input_folder_path, file_name_check_files)
+            file_size_check_files = os.path.getsize(file_path_check_files)
+            if (file_path_check_files, file_size_check_files) not in CONVERSED_FILES and (file_path_check_files, file_size_check_files) not in BAD_FILES:
+                print (f"\033[92m[INFO]\033[0m File {file_path_check_files, file_size_check_files} is new or was changed, adding to queue.")
+                FILES_PATHS.put(file_path_check_files)
 
 
 def main():
 
-    REQUIRED_KEYS = ["AIRCRAFT_REGISTRATION", "FLIGHT_NUMBER", "FLIGHT_DATE", "DEPARTURE_AIRPORT", "ARRIVAL_AIRPORT", "SCHEDULE_DEPARTURE_TIME", "REFUELED_AT"]
+    args = argument_parser()
+
+    # logging.basicConfig(filename=args.log, level=logging.INFO, format='[%(levelname)s] %(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    formatter = logging.Formatter('[%(levelname)s] %(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+
+    handler1 = logging.FileHandler(args.log_a)
+    handler1.setFormatter(formatter)
+    handler1.setLevel(logging.INFO)
+    logger.addHandler(handler1)
+
+    handler2 = logging.FileHandler(args.log_w)
+    handler2.setFormatter(formatter)
+    handler2.setLevel(logging.WARNING)
+    logger.addHandler(handler2)
+
+    input_folder_path = args.input
+    output_folder_path = args.output_folder_path
+    print_enabled = args.print
 
 
-    input_folder_path = "json_folder"
-    output_folder_path = "xml_folder"
+    try:
+        files_names = os.listdir(input_folder_path)
+    except FileNotFoundError:
+        print(f"\033[91mFolder {input_folder_path} does not exist\033[0m") if print_enabled else None
+        logging.error(f"Folder {input_folder_path} does not exist")
+        return 
 
-
-    files_names = os.listdir(input_folder_path)
-    # TODO check if folder exists
-    files_paths = Queue()
-    conversed_files = []
-    bad_files = []
-
-    def check_files():
-        while True:
-            time.sleep(2) 
-            files_names_check_files = os.listdir(input_folder_path)
-            for file_name_check_files in files_names_check_files:
-                file_path_check_files = os.path.join(input_folder_path, file_name_check_files)
-                file_size_check_files = os.path.getsize(file_path_check_files)
-                if (file_path_check_files, file_size_check_files) not in conversed_files and (file_path_check_files, file_size_check_files) not in bad_files:
-                    print (f"File {file_path_check_files, file_size_check_files} is new or was changed, adding to queue.")
-                    files_paths.put(file_path_check_files)
-
-    check_files_thread = Thread(target=check_files, daemon=True)
-    check_files_thread.start()
+    check_files_thread = Thread(target=check_files, args=(input_folder_path, args.time_delay_check, args.time_first_delay_check), daemon=True)
 
     for file_name in files_names:
-        files_paths.put(os.path.join(input_folder_path, file_name))
+        FILES_PATHS.put(os.path.join(input_folder_path, file_name))
 
     if not os.path.exists(output_folder_path):
         os.makedirs(output_folder_path)
+    
+    thread_not_started = True
 
     while True:
-        print(files_paths.qsize())
-        file_path = files_paths.get()
+
+        if thread_not_started and 0 == FILES_PATHS.qsize():
+            check_files_thread.start()
+            thread_not_started = False
+
+        file_path = FILES_PATHS.get()
 
         file_size = os.path.getsize(file_path)
 
         if file_path.split(".")[-1] != "json":
-            print(f"File {file_path} is not a json file")
-            bad_files.append((file_path, file_size ))
+            print(f"\033[91m[ERROR]\033[0m File {file_path} is not a json file") if print_enabled else None
+            logging.error(f"File {file_path} is not a json file")
+            BAD_FILES.append((file_path, file_size ))
             continue
 
         with open(file_path, "r") as json_file:
             try:
                 data = json.load(json_file)
             except json.JSONDecodeError as e:
-                print(f"File {file_path} is not a valid json file, skipping. Raised '{e}'")
-                bad_files.append((file_path, file_size ))
+                print(f"\033[91m[ERROR]\033[0m File {file_path} is not a valid json file, skipping. Raised '{e}'") if print_enabled else None
+                logging.error(f"File {file_path} is not a valid json file, skipping. Raised '{e}'")
+                BAD_FILES.append((file_path, file_size ))
                 continue
 
         df = pd.DataFrame(data.values(), index=data.keys())
         if df.empty:
-            print(f"File {file_path} is empty, or data could not be imported properly, skipping.")
-            bad_files.append((file_path, file_size ))
+            print(f"\033[91m[ERROR]\033[0m File {file_path} is empty, or data could not be imported properly, skipping.") if print_enabled else None
+            logging.error(f"File {file_path} is empty, or data could not be imported properly, skipping.")
+            BAD_FILES.append((file_path, file_size ))
             continue
 
         for key in REQUIRED_KEYS:
             if key not in df.columns:
-                print(f"File {file_path} does not contain required key: {key}")
+                print(f"\033[93m[WARN]\033[0m File {file_path} does not contain required key: {key}") if print_enabled else None
+                logging.warning(f"File {file_path} does not contain required key: {key}")
                 df[key] = None
         
-        time.sleep(1) # Checking for file writing, set time as parameter
+        time.sleep(args.time_wait_write) 
 
         if os.path.getsize(file_path) != file_size:
-            print(f"File {file_path} is being written, will try again later")
-            files_paths.put(file_path)
+            print(f"\033[93m[WARN]\033[0m File {file_path} is being written, will try again later") if print_enabled else None
+            logging.warning(f"File {file_path} is being written, will try again later")
+            FILES_PATHS.put(file_path)
             continue
 
         xml_data = df.to_xml()
         output_file_path = os.path.join(output_folder_path, file_path.split("/")[-1].replace("json", "xml"))
         with open(output_file_path, "w") as xml_file:
             xml_file.write(xml_data)
-        conversed_files.append((file_path, file_size))
+        print(f"\033[92m[INFO]\033[0m File {file_path} was converted to {output_file_path}") if print_enabled else None
+        logging.info(f"File {file_path} was converted to {output_file_path}")
+        CONVERSED_FILES.append((file_path, file_size))
 
 if __name__ == "__main__":
     main()
