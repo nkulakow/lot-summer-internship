@@ -50,31 +50,31 @@ FILES_PATHS = Queue()
 CONVERSED_FILES = []
 BAD_FILES = []
 
+
 def argument_parser():
-    parser = argparse.ArgumentParser(description='Converse json files to xml')
-    parser.add_argument('input', type=str, help='Path to folder with json files')
-    parser.add_argument('-output', '--output_folder_path', type=str, default="xml_folder", help='Path to folder where xml files will be saved, deault xml_folder')
-    parser.add_argument('-tdc', "--time_delay_check", type=float, default=1, help="Time delay for checking for new/modified files in seconds, default 2s")
-    parser.add_argument('-tfdc', "--time_first_delay_check", type=float, default=1, help="First time delay for checking for new/modified files in seconds, default 1s")
-    parser.add_argument('-tww', "--time_wait_write", type=float, default=0.1, help="Time delay for checking if file is still being written in seconds, default 0.1s")
-    parser.add_argument('-log_a', '--log_a', type=str, default="all_logs.log", help="Path to all log file, default all_logs.log")
-    parser.add_argument('-log_w', '--log_w', type=str, default="warning_logs.log", help="Path to warning log file, default warning_logs.log")
-    parser.add_argument('-p', '--print', type=int, default=1, help="Enable or disable printing, default 1 (enabled), to disable set to 0")
+    parser = argparse.ArgumentParser(description="Converse json files to xml")
+    parser.add_argument("input", type=str, help="Path to folder with json files")
+    parser.add_argument("-output", "--output_folder_path", type=str, default="xml_folder", help="Path to folder where xml files will be saved, deault xml_folder")
+    parser.add_argument("-tdc", "--time_delay_check", type=float, default=1, help="Time delay for checking for new/modified files in seconds, default 2s")
+    parser.add_argument("-tfdc", "--time_first_delay_check", type=float, default=1, help="First time delay for checking for new/modified files in seconds, default 1s")
+    parser.add_argument("-tww", "--time_wait_write", type=float, default=0.1, help="Time delay for checking if file is still being written in seconds, default 0.1s")
+    parser.add_argument("-log_a", "--log_a", type=str, default="all_logs.log", help="Path to all log file, default all_logs.log")
+    parser.add_argument("-log_w", "--log_w", type=str, default="warning_logs.log", help="Path to warning log file, default warning_logs.log")
+    parser.add_argument("-p", "--print", type=int, default=1, help="Enable or disable printing, default 1 (enabled), to disable set to 0")
     args = parser.parse_args()
     return args
 
 
-
-def check_files(input_folder_path : str, time_delay_check : float, time_first_delay_check : float) -> None: 
+def check_files(input_folder_path: str, time_delay_check: float, time_first_delay_check: float) -> None:
     time.sleep(time_first_delay_check)
     while True:
-        time.sleep(time_delay_check) 
+        time.sleep(time_delay_check)
         files_names_check_files = os.listdir(input_folder_path)
         for file_name_check_files in files_names_check_files:
             file_path_check_files = os.path.join(input_folder_path, file_name_check_files)
             file_size_check_files = os.path.getsize(file_path_check_files)
             if (file_path_check_files, file_size_check_files) not in CONVERSED_FILES and (file_path_check_files, file_size_check_files) not in BAD_FILES:
-                print (f"\033[92m[INFO]\033[0m File {file_path_check_files, file_size_check_files} is new or was changed, adding to queue.")
+                print(f"\033[92m[INFO]\033[0m File {file_path_check_files, file_size_check_files} is new or was changed, adding to queue.")
                 FILES_PATHS.put(file_path_check_files)
 
 
@@ -82,12 +82,10 @@ def main():
 
     args = argument_parser()
 
-    # logging.basicConfig(filename=args.log, level=logging.INFO, format='[%(levelname)s] %(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
-
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    formatter = logging.Formatter('[%(levelname)s] %(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+    formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(message)s", datefmt="%m/%d/%Y %H:%M:%S")
 
     handler1 = logging.FileHandler(args.log_a)
     handler1.setFormatter(formatter)
@@ -103,13 +101,12 @@ def main():
     output_folder_path = args.output_folder_path
     print_enabled = args.print
 
-
     try:
         files_names = os.listdir(input_folder_path)
     except FileNotFoundError:
         print(f"\033[91mFolder {input_folder_path} does not exist\033[0m") if print_enabled else None
         logging.error(f"Folder {input_folder_path} does not exist")
-        return 
+        return
 
     check_files_thread = Thread(target=check_files, args=(input_folder_path, args.time_delay_check, args.time_first_delay_check), daemon=True)
 
@@ -118,7 +115,7 @@ def main():
 
     if not os.path.exists(output_folder_path):
         os.makedirs(output_folder_path)
-    
+
     thread_not_started = True
 
     while True:
@@ -134,7 +131,7 @@ def main():
         if file_path.split(".")[-1] != "json":
             print(f"\033[91m[ERROR]\033[0m File {file_path} is not a json file") if print_enabled else None
             logging.error(f"File {file_path} is not a json file")
-            BAD_FILES.append((file_path, file_size ))
+            BAD_FILES.append((file_path, file_size))
             continue
 
         with open(file_path, "r") as json_file:
@@ -143,14 +140,14 @@ def main():
             except json.JSONDecodeError as e:
                 print(f"\033[91m[ERROR]\033[0m File {file_path} is not a valid json file, skipping. Raised '{e}'") if print_enabled else None
                 logging.error(f"File {file_path} is not a valid json file, skipping. Raised '{e}'")
-                BAD_FILES.append((file_path, file_size ))
+                BAD_FILES.append((file_path, file_size))
                 continue
 
         df = pd.DataFrame(data.values(), index=data.keys())
         if df.empty:
             print(f"\033[91m[ERROR]\033[0m File {file_path} is empty, or data could not be imported properly, skipping.") if print_enabled else None
             logging.error(f"File {file_path} is empty, or data could not be imported properly, skipping.")
-            BAD_FILES.append((file_path, file_size ))
+            BAD_FILES.append((file_path, file_size))
             continue
 
         for key in REQUIRED_KEYS:
@@ -158,8 +155,8 @@ def main():
                 print(f"\033[93m[WARN]\033[0m File {file_path} does not contain required key: {key}") if print_enabled else None
                 logging.warning(f"File {file_path} does not contain required key: {key}")
                 df[key] = None
-        
-        time.sleep(args.time_wait_write) 
+
+        time.sleep(args.time_wait_write)
 
         if os.path.getsize(file_path) != file_size:
             print(f"\033[93m[WARN]\033[0m File {file_path} is being written, will try again later") if print_enabled else None
@@ -174,6 +171,7 @@ def main():
         print(f"\033[92m[INFO]\033[0m File {file_path} was converted to {output_file_path}") if print_enabled else None
         logging.info(f"File {file_path} was converted to {output_file_path}")
         CONVERSED_FILES.append((file_path, file_size))
+
 
 if __name__ == "__main__":
     main()
