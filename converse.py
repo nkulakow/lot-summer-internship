@@ -43,20 +43,48 @@ from queue import Queue
 from threading import Thread
 import argparse
 import logging
-import subprocess
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+from watchdog.events import FileSystemEvent
 
 
 REQUIRED_KEYS = ["AIRCRAFT_REGISTRATION", "FLIGHT_NUMBER", "FLIGHT_DATE", "DEPARTURE_AIRPORT", "ARRIVAL_AIRPORT", "SCHEDULE_DEPARTURE_TIME", "REFUELED_AT"]
 FILES_PATHS = Queue()
-CONVERSED_FILES = []
-BAD_FILES = []
 
 
-def argument_parser():
+class FileChangeHandler(FileSystemEventHandler):
+    def on_modified(self, event : FileSystemEvent) -> None:
+        file_path = event.src_path
+        if file_path not in FILES_PATHS.queue and not os.path.isdir(file_path):
+            print(f"\033[92m[INFO]\033[0m File {file_path} was modified at {time.ctime(os.path.getmtime(file_path))}, adding to queue.")
+            logging.info(f"File {file_path} was modified at {time.ctime(os.path.getmtime(file_path))}, added to queue.")
+            FILES_PATHS.put(file_path)
+
+    def on_created(self, event : FileSystemEvent) -> None:
+        file_path = event.src_path
+        if file_path not in FILES_PATHS.queue and not os.path.isdir(file_path):
+            print(f"\033[92m[INFO]\033[0m File {file_path} was created at {time.ctime(os.path.getmtime(file_path))}, adding to queue.")
+            logging.info(f"File {file_path} was created at {time.ctime(os.path.getmtime(file_path))}, added to queue.")
+            FILES_PATHS.put(file_path)
+
+
+def check_files(input_folder_path: str) -> None:
+    event_handler = FileChangeHandler()
+    observer = Observer()
+    observer.schedule(event_handler, input_folder_path, recursive=True)
+    observer.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
+
+
+def argument_parser() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Converse json files to xml")
     parser.add_argument("input", type=str, help="Path to folder with json files")
     parser.add_argument("-output", "--output_folder_path", type=str, default="xml_folder", help="Path to folder where xml files will be saved, deault xml_folder")
-    parser.add_argument("-tdc", "--time_delay_check", type=float, default=1, help="Time delay for checking for new/modified files in seconds, default 2s")
     parser.add_argument("-tww", "--time_wait_write", type=float, default=0.1, help="Time delay for checking if file is still being written in seconds, default 0s")
     parser.add_argument("-log_a", "--log_a", type=str, default="all_logs.log", help="Path to all log file, default all_logs.log")
     parser.add_argument("-log_w", "--log_w", type=str, default="warning_logs.log", help="Path to warning log file, default warning_logs.log")
@@ -65,22 +93,11 @@ def argument_parser():
     return args
 
 
-def check_files(input_folder_path: str, time_delay_check: float) -> None:
-    while True:
-        time.sleep(time_delay_check)
-        files_names_check_files = os.listdir(input_folder_path)
-        for file_name_check_files in files_names_check_files:
-            file_path_check_files = os.path.join(input_folder_path, file_name_check_files)
-            file_last_modified_check_files = os.path.getmtime(file_path_check_files)
-            if (file_path_check_files, file_last_modified_check_files) not in CONVERSED_FILES and (file_path_check_files, file_last_modified_check_files) not in BAD_FILES:
-                print(f"\033[92m[INFO]\033[0m File {file_path_check_files} is new or was changed at {time.ctime(file_last_modified_check_files)}, adding to queue.")
-                FILES_PATHS.put(file_path_check_files)
-
 def main():
 
     args = argument_parser()
 
-    logger = logging.getLogger() 
+    logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
     formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(message)s", datefmt="%m/%d/%Y %H:%M:%S")
@@ -111,7 +128,7 @@ def main():
             logging.error(f"Folder {input_folder_path} does not exist")
             return
 
-        check_files_thread = Thread(target=check_files, args=(input_folder_path, args.time_delay_check), daemon=True)
+        check_files_thread = Thread(target=check_files, args=(input_folder_path, ), daemon=True)
 
         for file_name in files_names:
             FILES_PATHS.put(os.path.join(input_folder_path, file_name))
@@ -134,7 +151,6 @@ def main():
             if file_path.split(".")[-1] != "json":
                 print(f"\033[91m[ERROR]\033[0m File {file_path} is not a json file") if print_enabled else None
                 logging.error(f"File {file_path} is not a json file")
-                BAD_FILES.append((file_path, last_modified))
                 continue
 
             with open(file_path, "r") as json_file:
@@ -143,14 +159,12 @@ def main():
                 except json.JSONDecodeError as e:
                     print(f"\033[91m[ERROR]\033[0m File {file_path} is not a valid json file, skipping. Raised '{e}'") if print_enabled else None
                     logging.error(f"File {file_path} is not a valid json file, skipping. Raised '{e}'")
-                    BAD_FILES.append((file_path, last_modified))
                     continue
 
             df = pd.DataFrame(data.values(), index=data.keys())
             if df.empty:
                 print(f"\033[91m[ERROR]\033[0m File {file_path} is empty, or data could not be imported properly, skipping.") if print_enabled else None
                 logging.error(f"File {file_path} is empty, or data could not be imported properly, skipping.")
-                BAD_FILES.append((file_path, last_modified))
                 continue
 
             for key in REQUIRED_KEYS:
@@ -173,8 +187,7 @@ def main():
                 xml_file.write(xml_data)
             print(f"\033[92m[INFO]\033[0m File {file_path} was converted to {output_file_path}") if print_enabled else None
             logging.info(f"File {file_path} was converted to {output_file_path}")
-            CONVERSED_FILES.append((file_path, last_modified))
-    
+
     except KeyboardInterrupt:
         print("\033[92mProgram was stopped by user\033[0m ") if print_enabled else None
         logging.info("Program was stopped by user")
