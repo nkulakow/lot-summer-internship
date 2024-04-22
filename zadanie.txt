@@ -1,0 +1,34 @@
+Opis business case'a:
+Zgłasza się do Ciebie kierownik działu odpowiedzialnego za zarządzanie procesem tankowania
+samolotów. Podczas wdrażania nowego oprogramowania wspierającego ich pracę, okazało się, że część
+danych docierających od dostawców nie jest kompatybilna z nowym oprogramowaniem. Prosi Cię, o
+przygotowanie rozwiązania, które umożliwi dostosowanie danych do wymaganego formatu.
+Opis zadania:
+1. Przygotuj skrypt w języku python (wersja 3.6 lub wyższa), który wykona konwersje plików JSON
+w folderze wejściowym, do formatu XML, a następnie po dokonanej konwersji przeniesie go do
+innego folderu.
+Zwróć uwagę na:
+a. Przed wykonaniem konwersji, upewnij się, że plik wejściowy został już w całości
+zapisany.
+b. Pamiętaj o tym, że może pojawić się potrzeba weryfikacji przebiegu działania konwersji
+dla konkretnego pliku.
+c. Obsługa błędów jest ważna, jeden błąd nie może zablokować całości przepływu.
+d. Dane powinny być procesowane możliwie na bieżąco.
+e. Unikaj umieszczania dynamicznych parametrów w kodzie (np. ścieżki do folderów).
+2. Zaproponuj:
+a. Co powinno być objęte przez system monitoringu, żebyśmy wiedzieli, że w naszym
+przepływie coś nie działa poprawnie.
+b. W jaki sposób powinno być uruchamiane rozwiązanie na serwerze, gdzie zostanie
+umieszczone.
+Przykład pliku wejściowego:
+{
+ "FLIGHT": {
+ "AIRCRAFT_REGISTRATION": "SPLSA",
+ "FLIGHT_NUMBER": 458,
+ "FLIGHT_DATE": "2024-03-20",
+ "DEPARTURE_AIRPORT": "WAW",
+ "ARRIVAL_AIRPORT": "JFK",
+ "SCHEDULE_DEPARTURE_TIME": "2024-03-20 13:00:00",
+ "REFUELED_AT": "2024-03-20 12:30:00"
+ }
+}

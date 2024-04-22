@@ -1,38 +1,6 @@
 """
-Opis business case'a:
-Zgłasza się do Ciebie kierownik działu odpowiedzialnego za zarządzanie procesem tankowania
-samolotów. Podczas wdrażania nowego oprogramowania wspierającego ich pracę, okazało się, że część
-danych docierających od dostawców nie jest kompatybilna z nowym oprogramowaniem. Prosi Cię, o
-przygotowanie rozwiązania, które umożliwi dostosowanie danych do wymaganego formatu.
-Opis zadania:
-1. Przygotuj skrypt w języku python (wersja 3.6 lub wyższa), który wykona konwersje plików JSON
-w folderze wejściowym, do formatu XML, a następnie po dokonanej konwersji przeniesie go do
-innego folderu.
-Zwróć uwagę na:
-a. Przed wykonaniem konwersji, upewnij się, że plik wejściowy został już w całości
-zapisany.
-b. Pamiętaj o tym, że może pojawić się potrzeba weryfikacji przebiegu działania konwersji
-dla konkretnego pliku.
-c. Obsługa błędów jest ważna, jeden błąd nie może zablokować całości przepływu.
-d. Dane powinny być procesowane możliwie na bieżąco.
-e. Unikaj umieszczania dynamicznych parametrów w kodzie (np. ścieżki do folderów).
-2. Zaproponuj:
-a. Co powinno być objęte przez system monitoringu, żebyśmy wiedzieli, że w naszym
-przepływie coś nie działa poprawnie.
-b. W jaki sposób powinno być uruchamiane rozwiązanie na serwerze, gdzie zostanie
-umieszczone.
-Przykład pliku wejściowego:
-{
- "FLIGHT": {
- "AIRCRAFT_REGISTRATION": "SPLSA",
- "FLIGHT_NUMBER": 458,
- "FLIGHT_DATE": "2024-03-20",
- "DEPARTURE_AIRPORT": "WAW",
- "ARRIVAL_AIRPORT": "JFK",
- "SCHEDULE_DEPARTURE_TIME": "2024-03-20 13:00:00",
- "REFUELED_AT": "2024-03-20 12:30:00"
- }
-}
+Author: Nel Kułakowska
+Date: 2024-04-22
 """
 
 import time
@@ -88,7 +56,7 @@ def argument_parser() -> argparse.Namespace:
     parser.add_argument("-tww", "--time_wait_write", type=float, default=0.1, help="Time delay for checking if file is still being written in seconds, default 0s")
     parser.add_argument("-log_a", "--log_a", type=str, default="all_logs.log", help="Path to all log file, default all_logs.log")
     parser.add_argument("-log_w", "--log_w", type=str, default="warning_logs.log", help="Path to warning log file, default warning_logs.log")
-    parser.add_argument("-p", "--print", type=int, default=1, help="Enable or disable printing, default 1 (enabled), to disable set to 0")
+    parser.add_argument('-np', '--no_print', action='store_false', help="Disable printing")
     args = parser.parse_args()
     return args
 
@@ -114,7 +82,7 @@ def main():
 
     input_folder_path = args.input
     output_folder_path = args.output_folder_path
-    print_enabled = args.print
+    print_enabled = args.no_print
 
     print("\033[92mProgram was started by user\033[0m ") if print_enabled else None
     logging.info("Program was started by user")
